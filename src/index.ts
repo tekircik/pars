@@ -12,6 +12,13 @@ interface Results {
   source: string;
 }
 
+interface CacheEntry {
+  data: Results[];
+  expire: number;
+}
+
+const cache: { [key: string]: CacheEntry } = {};
+
 import rateLimit from 'express-rate-limit';
 
 const limiter = rateLimit({
@@ -24,6 +31,35 @@ const app = express();
 
 app.use(cors());
 app.use(bodyParser.json());
+
+async function getBrave(q: string): Promise<Results[]> {
+  const results: Results[] = [];
+  try {
+    // Request Brave Search API and assume a JSON response with a "results" array
+    const response = await axios.get('https://api.search.brave.com/res/v1/web/search?q=' + q, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Subscription-Token': process.env.BRAVE_API_KEY || ''
+      }
+    });
+    if (true) {
+      response.data.web.results.forEach((item: any) => {
+
+        const result: Results = {
+          title: item.title || '',
+          description: item.description || '',
+          displayUrl: (item.url || '').replace(/^https?:\/\//, ''),
+          url: item.url || '',
+          source: 'Brave'
+        };
+        results.push(result);
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching Brave search data:', error);
+  }
+  return results;
+}
 
 async function getDuck(q: string): Promise<Results[]> {
   const results: Results[] = [];
@@ -105,9 +141,28 @@ app.get('/api', async (req, res) => {
     let results: Results[] = [];
 
     switch (source) {
-      case 'duck':
-        results = await getDuck(query);
+      case 'duck': {
+        const cacheKey = `duck_${query}`;
+        const now = Date.now();
+        if (cache[cacheKey] && cache[cacheKey].expire > now) {
+          results = cache[cacheKey].data;
+        } else {
+          results = await getDuck(query);
+          cache[cacheKey] = { data: results, expire: now + 30 * 60 * 1000 };
+        }
         break;
+      }
+      case 'brave': {
+        const cacheKey = `brave_${query}`;
+        const now = Date.now();
+        if (cache[cacheKey] && cache[cacheKey].expire > now) {
+          results = cache[cacheKey].data;
+        } else {
+          results = await getBrave(query);
+          cache[cacheKey] = { data: results, expire: now + 30 * 60 * 1000 };
+        }
+        break;
+      }
       default:
         return res.status(400).json({ error: 'Invalid source' });
     }
