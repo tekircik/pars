@@ -47,7 +47,7 @@ async function getBrave(q: string): Promise<Results[]> {
 
         const result: Results = {
           title: item.title || '',
-          description: item.description || '',
+          description: (item.description || '').replace(/<[^>]+>/g, ''), // removed possible HTML tags
           displayUrl: (item.url || '').replace(/^https?:\/\//, ''),
           url: item.url || '',
           source: 'Brave'
@@ -108,7 +108,7 @@ async function getDuck(q: string): Promise<Results[]> {
         url += '/';
       }
 
-      const description = desc.replace(/(\r\n|\n|\r)/gm, '');
+      const description = desc.replace(/<[^>]+>/g, '').replace(/(\r\n|\n|\r)/gm, ''); // removed HTML tags and line breaks
       if (title === '' || displayUrl === '' || url === '') {
       }
 
