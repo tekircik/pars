@@ -3,6 +3,7 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import axios from 'axios';
 import { load } from 'cheerio';
+import iconv from 'iconv-lite';
 
 interface Results {
   title: string;
@@ -128,6 +129,52 @@ async function getDuck(q: string): Promise<Results[]> {
   return results;
 }
 
+async function getGoogle(q, n): Promise<Results[]> {
+  const results: Results[] = [];
+
+  const response = await axios.get("https://www.google.com/search?q=" + q + "&start=" + n , {
+      responseType: 'arraybuffer'
+  });
+  const html = iconv.decode(Buffer.from(response.data), 'ISO-8859-1');
+
+  const $ = load(html);
+
+  $("div.Gx5Zad.xpd.EtOod.pkphOe").each((div, productHTMLElement) => {
+      const title: string = $(productHTMLElement).find("div.BNeawe.vvjwJb.AP7Wnd").text() as string;
+      const displayUrl: string = $(productHTMLElement).find("div.BNeawe.UPmit.AP7Wnd.lRVwie").text() as string;
+      const trackerurl: string = $(productHTMLElement).find("div.egMi0.kCrYT a").attr("href") as string;
+      const description: string = $(productHTMLElement).find("div.BNeawe.s3v9rd.AP7Wnd").text() as string;
+
+      const prefix = '/url?q=';
+      const suffix = '&sa=';
+      let url;
+      if (trackerurl) {
+          if (trackerurl.startsWith(prefix)) {
+              const startIndex = prefix.length;
+              const endIndex = trackerurl.indexOf(suffix);
+
+              if (endIndex !== -1) {
+                  url = trackerurl.substring(startIndex, endIndex);
+              } else {
+                  url = trackerurl.substring(startIndex);
+              }
+          } else {
+              url = trackerurl;
+          }
+      }
+
+      const result: Results = {
+          title: title,
+          description: description,
+          displayUrl: displayUrl,
+          url: url,
+          source: "Google"
+      };
+      results.push(result);
+  });
+  return results;
+}
+
 app.get('/', (req, res) => {
   return res.status(200).send({ response: 'Tekir search API active!' });
 });
@@ -163,6 +210,17 @@ app.get('/api', async (req, res) => {
         }
         break;
       }
+      case 'google': {
+        const cacheKey = `google_${query}`;
+        const now = Date.now();
+        if (cache[cacheKey] && cache[cacheKey].expire > now) {
+          results = cache[cacheKey].data;
+        } else {
+          results = await getGoogle(query, 0);
+          cache[cacheKey] = { data: results, expire: now + 30 * 60 * 1000 };
+        }
+        break;
+      }
       default:
         return res.status(400).json({ error: 'Invalid source' });
     }
@@ -176,5 +234,5 @@ app.get('/api', async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3001, () => {
-  console.log('Server running!');
+  console.log('✅ Tekir search API started!');
 });
