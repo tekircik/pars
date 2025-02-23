@@ -105,12 +105,14 @@ async function getDuck(q: string): Promise<Results[]> {
         displayUrl = displayUrl.substring(0, displayUrl.indexOf('...'));
       }
 
-      if (!url.endsWith('/')) {
-        url += '/';
+      // If the link ends with '/', remove it
+      if (url.endsWith('/')) {
+        url = url.slice(0, -1);
       }
 
-      const description = desc.replace(/<[^>]+>/g, '').replace(/(\r\n|\n|\r)/gm, ''); // removed HTML tags and line breaks
+      const description = desc.replace(/<[^>]+>/g, '').replace(/(\r\n|\n|\r)/gm, '');
       if (title === '' || displayUrl === '' || url === '') {
+        return;
       }
 
       const result: Results = {
