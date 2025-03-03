@@ -29,8 +29,23 @@ const limiter = rateLimit({
 
 const app = express();
 
+// Replace the default CORS configuration
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if(!origin) return callback(null, true);
+    
+    // Allow requests from tekir.co domains
+    if(origin.endsWith('tekir.co') || origin.includes('.tekir.co')) {
+      return callback(null, true);
+    }
+    
+    // For all other origins, add the Access-Control-Allow-Origin header
+    callback(null, origin);
+  },
+  credentials: true
+}));
 
-app.use(cors());
 app.use(bodyParser.json());
 
 async function getBrave(q: string): Promise<Results[]> {
